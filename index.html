@@ -610,44 +610,107 @@ function renderResult(earned,possible,pct,wrong){
 }
 
 function downloadPDF(){
-  const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'});
-  const W=612,M=48; let y=58;
-  const plain=s=>String(s).replace(/·/g,'*');
-  doc.setFillColor(15,140,90); doc.rect(0,0,W,8,'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(26,29,27);
-  doc.text('Examen II — Retroalimentacion',M,y); y+=22;
-  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90,100,95);
-  doc.text('Estudiante: '+student.name+'   ·   ID: '+student.id,M,y); y+=16;
-  const correctas=seq.length-student.wrong.length;
-  doc.text('Nota: '+student.pct.toFixed(1)+'%   ·   '+correctas+' correctas de '+seq.length+'   ·   '+(student.pct>=70?'Aprobado':'Reprobado'),M,y); y+=16;
-  doc.text('Puntos: '+(+student.earned.toFixed(1))+'/'+student.possible+'   ·   Aporte 30%: '+(student.pct/100*30).toFixed(1),M,y); y+=22;
-  doc.setDrawColor(220,228,224); doc.line(M,y,W-M,y); y+=20;
-  if(!student.wrong.length){
-    doc.setFont('helvetica','bold'); doc.setTextColor(15,140,90); doc.text('Sin errores. Respondio todo correctamente.',M,y);
+  const { jsPDF } = window.jspdf; 
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const W = 612, M = 48; 
+  let y = 58;
+
+  const plain = s => String(s).replace(/·/g, '*');
+
+  // Encabezado
+  doc.setFillColor(15, 140, 90); 
+  doc.rect(0, 0, W, 8, 'F');
+  doc.setFont('helvetica', 'bold'); 
+  doc.setFontSize(16); 
+  doc.setTextColor(26, 29, 27);
+  doc.text('Examen II — Retroalimentación', M, y); y += 22;
+
+  doc.setFont('helvetica', 'normal'); 
+  doc.setFontSize(11); 
+  doc.setTextColor(90, 100, 95);
+  doc.text('Estudiante: ' + student.name + '   ·   ID: ' + student.id, M, y); y += 16;
+
+  const correctas = seq.length - student.wrong.length;
+  doc.text('Nota: ' + student.pct.toFixed(1) + '%   ·   ' + correctas + ' correctas de ' + seq.length + '   ·   ' + (student.pct >= 70 ? 'Aprobado' : 'Reprobado'), M, y); y += 16;
+  doc.text('Puntos: ' + (+student.earned.toFixed(1)) + '/' + student.possible + '   ·   Aporte 30%: ' + (student.pct / 100 * 30).toFixed(1), M, y); y += 22;
+
+  doc.setDrawColor(220, 228, 224); 
+  doc.line(M, y, W - M, y); y += 20;
+
+  if (!student.wrong.length) {
+    doc.setFont('helvetica', 'bold'); 
+    doc.setTextColor(15, 140, 90); 
+    doc.text('Sin errores. Respondió todo correctamente.', M, y);
   } else {
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(26,29,27);
-    doc.text('Preguntas con inconsistencias ('+student.wrong.length+')',M,y); y+=20;
-    student.wrong.forEach(i=>{ const s=seq[i], q=QUESTIONS[s.qi];
-      if(y>700){ doc.addPage(); y=58; }
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(180,50,42);
-      doc.text('Ejercicio '+(i+1)+' — '+q.part,M,y); y+=15;
-      doc.setFont('helvetica','normal'); doc.setTextColor(26,29,27);
-      const pr=plain(q.prompt); doc.splitTextToSize(pr,W-2*M).forEach((l,j)=>doc.text(l,M,y+j*13)); y+=doc.splitTextToSize(pr,W-2*M).length*13+4;
-      
-      if(q.type === 'drag_match'){
-        doc.setTextColor(60,70,65);
-        doc.text('Ejercicio interactivo de asociacion (revise la plataforma web para el desglose)',M,y); y+=14;
+    doc.setFont('helvetica', 'bold'); 
+    doc.setFontSize(13); 
+    doc.setTextColor(26, 29, 27);
+    doc.text('Preguntas con inconsistencias (' + student.wrong.length + ')', M, y); y += 20;
+
+    student.wrong.forEach(i => {
+      const s = seq[i], q = QUESTIONS[s.qi];
+
+      // Verificación de salto de página si no alcanza el espacio
+      if (y > 680) { doc.addPage(); y = 58; }
+
+      doc.setFont('helvetica', 'bold'); 
+      doc.setFontSize(11); 
+      doc.setTextColor(180, 50, 42);
+      doc.text('Ejercicio ' + (i + 1) + ' — ' + q.part, M, y); y += 15;
+
+      doc.setFont('helvetica', 'normal'); 
+      doc.setTextColor(26, 29, 27);
+      const pr = plain(q.prompt);
+      const promptLines = doc.splitTextToSize(pr, W - 2 * M);
+      promptLines.forEach((l, j) => doc.text(l, M, y + j * 13));
+      y += promptLines.length * 13 + 6;
+
+      // DETALLE SI ES PREGUNTA INTERACTIVA (PARTE III)
+      if (q.type === 'drag_match') {
+        const userMatches = answers[i] || {};
+        q.concepts.forEach(c => {
+          if (y > 720) { doc.addPage(); y = 58; }
+          
+          const userDId = Object.keys(userMatches).find(dId => userMatches[dId] === c.id);
+          const userDef = q.definitions.find(d => d.id === userDId);
+          const correctDef = q.definitions.find(d => d.id === c.match);
+          const isOk = userDId === c.match;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(26, 29, 27);
+          doc.text('  • ' + c.label + ':', M, y); y += 13;
+
+          doc.setFont('helvetica', 'normal');
+          if (isOk) {
+            doc.setTextColor(15, 140, 90);
+            doc.text('    Respuesta: ' + plain(userDef ? userDef.text : '(Sin responder)') + ' [OK]', M, y); y += 13;
+          } else {
+            doc.setTextColor(180, 50, 42);
+            doc.text('    Tu respuesta: ' + plain(userDef ? userDef.text : '(Sin responder)'), M, y); y += 13;
+            doc.setTextColor(15, 140, 90);
+            doc.text('    Correcto: ' + plain(correctDef.text), M, y); y += 13;
+          }
+        });
+        y += 4;
       } else {
-        const mine=answers[i]!==undefined?plain(q.options[s.keys[answers[i]]]):'(sin responder)';
-        doc.setTextColor(180,50,42); doc.text('Tu respuesta: '+mine,M,y); y+=14;
-        doc.setTextColor(15,140,90); doc.text('Correcta: '+plain(q.options[q.correct]),M,y); y+=14;
+        // PREGUNTAS DE SELECCIÓN ÚNICA
+        const mine = answers[i] !== undefined ? plain(q.options[s.keys[answers[i]]]) : '(sin responder)';
+        doc.setTextColor(180, 50, 42); 
+        doc.text('Tu respuesta: ' + mine, M, y); y += 14;
+        doc.setTextColor(15, 140, 90); 
+        doc.text('Correcta: ' + plain(q.options[q.correct]), M, y); y += 14;
       }
-      
-      doc.setTextColor(60,70,65); const why='Explicacion: '+plain(q.why);
-      doc.splitTextToSize(why,W-2*M).forEach((l,j)=>doc.text(l,M,y+j*13)); y+=doc.splitTextToSize(why,W-2*M).length*13+16;
+
+      // Explicación / Retroalimentación
+      doc.setTextColor(60, 70, 65); 
+      const why = 'Explicación: ' + plain(q.why);
+      const whyLines = doc.splitTextToSize(why, W - 2 * M);
+      whyLines.forEach((l, j) => doc.text(l, M, y + j * 13));
+      y += whyLines.length * 13 + 16;
     });
   }
-  doc.save('Retroalimentacion Examen II - '+student.name+'.pdf');
+
+  doc.save('Retroalimentacion Examen II - ' + student.name + '.pdf');
 }
 
 checkResume();
